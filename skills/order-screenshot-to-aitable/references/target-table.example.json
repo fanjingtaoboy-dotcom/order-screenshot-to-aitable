@@ -1,0 +1,44 @@
+{
+  "_comment": "目标多维表配置示例。复制为 target-table.json 后填入你自己的信息。字段 ID 必须来自实时 field get，不要凭记忆填写。",
+  "target": {
+    "baseId": "YOUR_BASE_ID",
+    "tableId": "YOUR_TABLE_ID",
+    "tableName": "订单录入（投放）",
+    "viewId": "YOUR_VIEW_ID",
+    "viewName": "总表单"
+  },
+  "fields": {
+    "orderNo": {
+      "fieldId": "YOUR_ORDER_NO_FIELD_ID",
+      "name": "订单编号",
+      "requiredType": "text",
+      "note": "必须是文本类型。数字类型会让 19 位订单号被四舍五入，且不可逆。"
+    },
+    "orderTime": {
+      "fieldId": "YOUR_ORDER_TIME_FIELD_ID",
+      "name": "用户下单日期",
+      "requiredType": "date"
+    },
+    "phone": {
+      "fieldId": "YOUR_PHONE_FIELD_ID",
+      "name": "虚拟手机号",
+      "requiredType": "text"
+    },
+    "assistant": {
+      "fieldId": "YOUR_ASSISTANT_FIELD_ID",
+      "name": "承接助教",
+      "requiredType": "user"
+    }
+  },
+  "readOnlyFields": [
+    { "fieldId": "YOUR_FIELD_ID", "name": "进量编号", "type": "autoNumber" },
+    { "fieldId": "YOUR_FIELD_ID", "name": "发货地址", "type": "filterUp" },
+    { "fieldId": "YOUR_FIELD_ID", "name": "发货备注", "type": "filterUp" },
+    { "fieldId": "YOUR_FIELD_ID", "name": "核销码", "type": "filterUp" }
+  ],
+  "defaults": {
+    "_note": "assistantName 仅用作追问话术示例，不会自动生效。每次执行必须由使用者显式指定承接助教。",
+    "assistantName": "示例助教姓名",
+    "orderNoLength": 19
+  }
+}

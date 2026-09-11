@@ -1,0 +1,4 @@
+interface:
+  display_name: "订单截图入多维表"
+  short_description: "从订单截图识别提取并安全新增到钉钉多维表，只增不改"
+  default_prompt: "Use $order-screenshot-to-aitable to append orders from these screenshots to the DingTalk AI table for the assistant I name, without touching existing records."

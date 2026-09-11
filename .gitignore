@@ -1,0 +1,12 @@
+# 本地私有文件：包含真实 baseId / tableId / fieldId 与同事姓名，绝不提交
+skills/order-screenshot-to-aitable/references/target-table.json
+skills/order-screenshot-to-aitable/references/local-denylist.txt
+
+# Python
+__pycache__/
+*.py[cod]
+.DS_Store
+
+# 运行期产物
+*.baseline.json
+order-*.json
