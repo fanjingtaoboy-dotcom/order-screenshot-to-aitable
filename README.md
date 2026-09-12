@@ -35,6 +35,9 @@
 
 ## 安装
 
+> 第一次使用、或者要教别人使用，先看 [docs/onboarding.md](docs/onboarding.md)：
+> 那里按顺序讲清楚了装什么、要哪些链接、怎么验收。
+
 推荐直接在 Codex 里粘贴：
 
 ```text
@@ -130,6 +133,7 @@ python3 scripts/append_guard.py verify \
 ├── LICENSE
 ├── README.md
 ├── docs/
+│   ├── onboarding.md              # 教别人使用：装什么、按什么步骤
 │   └── iteration-playbook.md      # 如何适配到自己的表格/组织
 ├── evals/
 │   ├── golden-cases.md            # 预期行为
