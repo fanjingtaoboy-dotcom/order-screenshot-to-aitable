@@ -23,6 +23,13 @@
       "fieldId": "YOUR_PHONE_FIELD_ID",
       "name": "虚拟手机号",
       "requiredType": "text"
+    },
+    "remark": {
+      "fieldId": "YOUR_REMARK_FIELD_ID",
+      "name": "订单备注",
+      "requiredType": "text",
+      "optional": true,
+      "note": "可选。仅当使用者提供了备注内容时才写入；没有备注时不写这一列。"
     }
   },
   "readOnlyFields": [
