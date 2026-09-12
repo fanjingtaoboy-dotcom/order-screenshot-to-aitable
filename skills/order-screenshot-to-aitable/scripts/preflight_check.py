@@ -16,7 +16,6 @@ from _common import (
     NON_WRITABLE_TYPES,
     fetch_auth,
     load_config,
-    resolve_assistant,
     run_dws,
 )
 
@@ -24,7 +23,6 @@ from _common import (
 def main() -> int:
     parser = argparse.ArgumentParser(description="订单入表只读预检")
     parser.add_argument("--config", default=str(DEFAULT_CONFIG), help="目标表配置 JSON")
-    parser.add_argument("--assistant", help="本次承接助教姓名；省略则校验配置默认值")
     args = parser.parse_args()
 
     blockers: list[str] = []
@@ -34,7 +32,6 @@ def main() -> int:
     config = load_config(args.config)
     target = config["target"]
     fields_cfg = config["fields"]
-    defaults = config.get("defaults", {})
     base_id = target["baseId"]
     table_id = target["tableId"]
 
@@ -79,32 +76,7 @@ def main() -> int:
                 "type": live.get("type"),
             }
 
-    # 3. 承接助教必须由本次使用者显式指定，随后解析为组织内唯一人员。
-    #    缺失时必须追问，绝不静默退回配置默认值，否则会把订单记到错误的人名下。
-    assistant_name = args.assistant
-    example = defaults.get("assistantName") or ""
-    context["assistantSource"] = "cli" if assistant_name else "missing"
-    ask_user = False
-    if not assistant_name:
-        ask_user = True
-        hint = f"；例如 --assistant {example}" if example else ""
-        blockers.append(
-            f"缺少承接助教姓名。请先向使用者追问本次订单分配给哪位助教，"
-            f"拿到姓名后再执行，不要先录入{hint}"
-        )
-    else:
-        identity, rerr = resolve_assistant(
-            assistant_name,
-            corp_id=context.get("corpId"),
-            expect_org=context.get("corpName"),
-        )
-        if rerr:
-            ask_user = True
-            blockers.append(f"承接助教「{assistant_name}」不可用：{rerr}")
-        else:
-            context["assistant"] = identity
-
-    # 4. 目标表身份校验
+    # 3. 目标表身份校验
     table_payload, err = run_dws(
         ["aitable", "table", "get", "--base-id", base_id, "--table-ids", table_id]
     )
@@ -128,11 +100,7 @@ def main() -> int:
 
     print(json.dumps(
         {"ok": not blockers,
-         "next_action": (
-             "ask_user_for_assistant" if ask_user
-             else "fix_blockers" if blockers
-             else "proceed"
-         ),
+         "next_action": "fix_blockers" if blockers else "proceed",
          "blockers": blockers, "warnings": warnings, "context": context},
         ensure_ascii=False,
         indent=2,

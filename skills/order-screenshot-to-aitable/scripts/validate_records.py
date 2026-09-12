@@ -10,12 +10,11 @@
   "productOrderId": "6917731421701746343",   // 可选，用于交叉核对
   "orderTime": "2026-09-11 16:05:04",
   "phoneWithSuffix": "17851404569 [2079]",   // 或分开给 phone / suffix
-  "recipientName": "杨先生",                  // 可选，仅用于核对
-  "assistant": "张老师"                       // 可选，逐条覆盖
+  "recipientName": "杨先生"                   // 可选，仅用于核对
 }
 
-承接助教优先级：逐条 assistant > --assistant > 配置默认值。
-使用配置默认值时会给出明确告警，避免静默错配。
+只写入四类信息中的三类：订单编号、下单时间、虚拟手机号。
+承接助教不在本 skill 的处理范围内，既不读取也不写入。
 """
 
 from __future__ import annotations
@@ -27,13 +26,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from _common import (
-    DEFAULT_CONFIG,
-    fetch_auth,
-    load_config,
-    resolve_assistant,
-    run_dws,
-)
+from _common import DEFAULT_CONFIG, load_config, run_dws
 
 DATE_FORMATS = (
     "%Y-%m-%d %H:%M:%S",
@@ -47,6 +40,9 @@ DATE_FORMATS = (
 
 # dws record create 单次上限
 MAX_RECORDS_PER_CALL = 100
+
+# 写入时实际使用的字段键；配置里缺少任何一个都会在加载后报错
+WRITE_FIELD_KEYS = ("orderNo", "orderTime", "phone")
 
 
 def normalize_time(raw: str):
@@ -135,33 +131,15 @@ def find_existing(base_id: str, table_id: str, field_id: str,
     return existing, failures
 
 
-def resolve_all(names: set[str], corp_id: str | None, expect_org: str | None):
-    """批量解析人员，返回 (identities, errors)。"""
-    identities: dict[str, dict] = {}
-    errors: dict[str, str] = {}
-    for name in sorted(names):
-        if not name:
-            continue
-        identity, err = resolve_assistant(name, corp_id=corp_id, expect_org=expect_org)
-        if err:
-            errors[name] = err
-        else:
-            identities[name] = identity
-    return identities, errors
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="校验订单提取结果")
     parser.add_argument("--input", required=True, help="提取结果 JSON 文件")
     parser.add_argument("--config", default=str(DEFAULT_CONFIG), help="目标表配置 JSON")
-    parser.add_argument("--assistant", help="本次承接助教姓名；省略则用配置默认值")
     parser.add_argument("--check-table", action="store_true",
                         help="调用只读查询接口，检查订单编号是否已存在")
     parser.add_argument("--require-all", action="store_true",
                         help="严格模式：只要有一条被阻断就不允许写入")
-    parser.add_argument("--respect-record-assistant", action="store_true",
-                        help="允许逐条 assistant 字段覆盖本次指定；默认忽略以免误配")
-    parser.add_argument("--out", help="可写入记录的输出文件前缀")
+    parser.add_argument("--out", help="可写入记录的输出文件")
     parser.add_argument("--max-per-file", type=int, default=MAX_RECORDS_PER_CALL,
                         help=f"每个写入文件最大条数，默认 {MAX_RECORDS_PER_CALL}")
     args = parser.parse_args()
@@ -172,64 +150,28 @@ def main() -> int:
     base_id = config["target"]["baseId"]
     table_id = config["target"]["tableId"]
     expect_len = int(defaults.get("orderNoLength", 19))
-    config_default_assistant = defaults.get("assistantName", "")
+
+    missing_fields = [k for k in WRITE_FIELD_KEYS if k not in fields_cfg]
+    if missing_fields:
+        print(json.dumps({
+            "ok": False,
+            "next_action": "fix_blockers",
+            "fatal": [f"目标表配置缺少必需字段：{missing_fields}"],
+        }, ensure_ascii=False, indent=2))
+        return 1
 
     raw = json.loads(Path(args.input).read_text(encoding="utf-8"))
     records = raw.get("records") if isinstance(raw, dict) else raw
     if not isinstance(records, list):
-        print(json.dumps({"ok": False, "fatal": ["输入 JSON 不是记录数组"]},
-                         ensure_ascii=False, indent=2))
-        return 1
-
-    auth, auth_err = fetch_auth()
-    if auth_err:
-        print(json.dumps({"ok": False, "fatal": [f"钉钉登录态不可用：{auth_err}"]},
-                         ensure_ascii=False, indent=2))
-        return 1
-    corp_id = auth.get("corp_id")
-    corp_name = auth.get("corp_name")
-
-    # 收集本次涉及的全部助教姓名。助教必须由本次使用者显式给出，
-    # 不允许静默落到配置默认值，否则会把订单记到错误的人名下。
-    batch_assistant = args.assistant or ""
-    assistant_source = "cli" if args.assistant else "unset"
-    record_level = {
-        str(r.get("assistant")).strip() for r in records
-        if r.get("assistant") and args.respect_record_assistant
-    }
-    if not batch_assistant and not record_level:
         print(json.dumps({
             "ok": False,
-            "next_action": "ask_user_for_assistant",
-            "fatal": [
-                "缺少承接助教姓名，已停止，未写入任何数据。"
-                "请先向使用者追问本次订单分配给哪位助教，拿到姓名后再执行。"
-                + (
-                    f"若使用者确认仍是常用助教，也要显式写作 --assistant "
-                    f"{config_default_assistant}"
-                    if config_default_assistant else ""
-                )
-            ],
+            "next_action": "fix_blockers",
+            "fatal": ["输入 JSON 不是记录数组"],
         }, ensure_ascii=False, indent=2))
         return 1
 
-    wanted: set[str] = set()
-    if batch_assistant:
-        wanted.add(batch_assistant)
-    wanted.update(record_level)
-
-    identities, resolve_errors = resolve_all(wanted, corp_id, corp_name)
-
     fatal: list[str] = []
     warnings: list[str] = []
-    ask_user = False
-
-    if batch_assistant and batch_assistant in resolve_errors:
-        ask_user = True
-        fatal.append(
-            f"承接助教「{batch_assistant}」无法使用：{resolve_errors[batch_assistant]}"
-        )
-
     items: list[dict] = []
     seen: dict[str, int] = {}
     blocked: list[dict] = []
@@ -270,40 +212,17 @@ def main() -> int:
             elif len(suffix) != 4:
                 warnings.append(f"订单 {order_no} 的虚拟号后缀为 {len(suffix)} 位，请确认")
 
-        record_assistant = str(record.get("assistant") or "").strip()
-        if record_assistant and args.respect_record_assistant:
-            if record_assistant in resolve_errors:
-                problems.append(
-                    f"逐条指定的助教「{record_assistant}」不可用："
-                    f"{resolve_errors[record_assistant]}"
-                )
-            chosen = record_assistant
-            if batch_assistant and record_assistant != batch_assistant:
-                warnings.append(
-                    f"订单 {order_no} 按逐条指定使用「{record_assistant}」，"
-                    f"与本次批次默认「{batch_assistant}」不同"
-                )
-        else:
-            chosen = batch_assistant
-            if record_assistant and not args.respect_record_assistant:
-                warnings.append(
-                    f"订单 {order_no} 自带的 assistant 字段已忽略，"
-                    f"统一使用本次指定「{batch_assistant}」"
-                )
-
         if order_no and order_no not in seen:
             seen[order_no] = index
 
-        item = {
+        items.append({
             "index": index + 1,
             "orderNo": order_no,
             "orderTime": order_time,
             "phoneWithSuffix": f"{phone} [{suffix}]" if phone and suffix else None,
             "recipientName": record.get("recipientName"),
-            "assistant": chosen,
             "problems": problems,
-        }
-        items.append(item)
+        })
         if problems:
             blocked.append({
                 "index": index + 1,
@@ -334,34 +253,21 @@ def main() -> int:
             for b in blocked
         )
 
-    writeable = []
-    for item in items:
-        if item["problems"] or item["orderNo"] in existing:
-            continue
-        identity = identities.get(item["assistant"]) if item["assistant"] else None
-        if identity is None:
-            item["problems"].append(f"助教「{item['assistant']}」未解析")
-            blocked.append({
-                "index": item["index"],
-                "orderNo": item["orderNo"],
-                "problems": [f"助教「{item['assistant']}」未解析"],
-            })
-            continue
-        writeable.append({
+    writeable = [
+        {
             "orderNo": item["orderNo"],
             "orderTime": item["orderTime"],
             "phoneWithSuffix": item["phoneWithSuffix"],
             "recipientName": item["recipientName"],
-            "assistant": item["assistant"],
             "cells": {
                 fields_cfg["orderNo"]["fieldId"]: item["orderNo"],
                 fields_cfg["orderTime"]["fieldId"]: item["orderTime"],
                 fields_cfg["phone"]["fieldId"]: item["phoneWithSuffix"],
-                fields_cfg["assistant"]["fieldId"]: [
-                    {"userId": identity["userId"], "corpId": identity["corpId"]}
-                ],
             },
-        })
+        }
+        for item in items
+        if not item["problems"] and item["orderNo"] not in existing
+    ]
 
     if not writeable and not fatal:
         fatal.append("没有可写入的记录：可能全部已存在或被阻断")
@@ -390,21 +296,13 @@ def main() -> int:
 
     result = {
         "ok": not fatal,
-        "next_action": "ask_user_for_assistant" if ask_user else (
-            "review_blocked_records" if blocked else "proceed"
-        ),
+        "next_action": "review_blocked_records" if blocked else "proceed",
         "summary": {
             "total": len(items),
             "writeable": len(writeable),
             "skipped_existing": len(existing),
             "blocked": len(blocked),
         },
-        "assistant": {
-            "requested": batch_assistant,
-            "source": assistant_source,
-            "identity": identities.get(batch_assistant),
-        },
-        "assistants": list(identities.values()),
         "fatal": fatal,
         "blocked_records": blocked,
         "warnings": warnings,

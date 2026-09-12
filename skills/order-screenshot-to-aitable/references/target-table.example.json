@@ -23,11 +23,6 @@
       "fieldId": "YOUR_PHONE_FIELD_ID",
       "name": "虚拟手机号",
       "requiredType": "text"
-    },
-    "assistant": {
-      "fieldId": "YOUR_ASSISTANT_FIELD_ID",
-      "name": "承接助教",
-      "requiredType": "user"
     }
   },
   "readOnlyFields": [
@@ -37,8 +32,7 @@
     { "fieldId": "YOUR_FIELD_ID", "name": "核销码", "type": "filterUp" }
   ],
   "defaults": {
-    "_note": "assistantName 仅用作追问话术示例，不会自动生效。每次执行必须由使用者显式指定承接助教。",
-    "assistantName": "示例助教姓名",
+    "_note": "承接助教不在本 skill 的处理范围内，这里不再保留其字段配置。",
     "orderNoLength": 19
   }
 }

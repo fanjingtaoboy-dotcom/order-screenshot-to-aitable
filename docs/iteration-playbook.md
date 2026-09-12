@@ -8,8 +8,7 @@
 |---|---|
 | 多维表链接 | 形如 `https://alidocs.dingtalk.com/i/nodes/<baseId>?sheetId=<tableId>` |
 | 目标视图 | 写入后希望在哪张视图看到记录 |
-| 字段对应关系 | 订单编号、下单时间、收货号码、承接助教分别对应哪个字段 |
-| 承接助教姓名 | 必须在写入账号所属组织内真实存在 |
+| 字段对应关系 | 订单编号、下单时间、收货号码分别对应哪个字段 |
 
 ## 步骤一：解析 baseId 与 tableId
 
@@ -52,10 +51,10 @@ cp references/target-table.example.json references/target-table.json
 ## 步骤五：验证
 
 ```bash
-python3 scripts/preflight_check.py --assistant "<助教姓名>"
+python3 scripts/preflight_check.py
 ```
 
-期望看到 `ok: true`，并且 `context` 里带上你的表名和助教身份。
+期望看到 `ok: true`，并且 `context` 里带上你的表名。
 
 常见阻断及含义：
 
@@ -63,16 +62,14 @@ python3 scripts/preflight_check.py --assistant "<助教姓名>"
 |---|---|
 | 字段「订单编号」当前类型为 number，要求 text | 订单编号字段类型不对，先改表格 |
 | 字段「XX」不存在，配置可能已过期 | fieldId 填错或表格结构变了，重新读一次 |
-| 承接助教「XX」不可用 | 姓名打错、不在本组织，或同名多人 |
 | 钉钉登录态不可用 | 需要先 `dws auth login` |
 
 ## 换成别人的组织
 
-换组织时要注意三件事：
+换组织时要注意两件事：
 
 1. 写入账号和目标表必须在同一个组织下。
-2. 承接助教的名字要在**写入账号所属组织**内能查到。
-3. 换组织后重新跑一遍预检，不要沿用旧配置。
+2. 换组织后重新跑一遍预检，不要沿用旧配置。
 
 ## 改动 skill 本身之后
 

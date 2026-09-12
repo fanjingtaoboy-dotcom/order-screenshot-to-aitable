@@ -13,7 +13,7 @@
 ## 技能结构
 
 - [ ] `SKILL.md` frontmatter 只有 `name` 和 `description`
-- [ ] `description` 包含触发场景，且说明缺助教时先追问
+- [ ] `description` 包含触发场景，且说明不处理承接助教
 - [ ] 结构校验通过
 
 ```bash
@@ -25,19 +25,18 @@ python3 ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py \
 
 - [ ] 四个脚本语法正确
 - [ ] 缺少配置时给出可操作指引，不抛堆栈
-- [ ] 缺助教时预检与校验都返回 `next_action: ask_user_for_assistant`
-- [ ] 缺助教时不生成写入文件
-- [ ] 姓名不精确时被拒绝，不采用相似结果
+- [ ] 预检与校验都不接受 `--assistant` 参数（该参数已移除）
+- [ ] 写入文件只包含订单编号、下单时间、虚拟手机号三个字段
+- [ ] 脚本中不存在人员检索相关调用
 
 ## 行为回归
 
 按 `evals/test-prompts.md` 跑一遍，重点是：
 
 - [ ] 正常流程能写入并回读正确
-- [ ] 缺助教时先追问、不写入
+- [ ] 只给截图、不提助教时能正常执行
 - [ ] 已存在的订单被跳过，不覆盖
 - [ ] 写入前后指纹比对 `unchanged: true`
-- [ ] 模糊姓名被拒绝
 
 ## 发布前最后一次
 
